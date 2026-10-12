@@ -793,12 +793,12 @@
       "outputs": [
         {
           "key": "found",
-          "type": "boolean",
+          "type": "number",
           "label": {
-            "en": "Event found",
-            "fr": "Événement trouvé",
-            "de": "Termin gefunden",
-            "es": "Evento encontrado"
+            "en": "Event found (1 yes, 0 no)",
+            "fr": "Événement trouvé (1 oui, 0 non)",
+            "de": "Termin gefunden (1 ja, 0 nein)",
+            "es": "Evento encontrado (1 sí, 0 no)"
           }
         },
         {

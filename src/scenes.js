@@ -11,7 +11,9 @@
 //   - trigger `calendar_unreachable`: a feed has been failing for hours (an
 //     expired Pronote link, a regenerated Google secret address);
 //   - action `next_event`: the next event matching a text, however far, with
-//     the number of days until it ("bulky waste in 12 days").
+//     the number of days until it ("bulky waste in 12 days"). `found` is a
+//     number (1/0): the core's "condition on variables" compares strictly,
+//     and what the user types there is never a boolean.
 //
 // Like the core's calendar scenes, only SHARED calendars are involved: a
 // scene is household business, a private calendar stays private.
@@ -97,11 +99,11 @@ export const SCENE_ACTIONS = {
   async next_event({ syncer, config, now }, fields) {
     const found = findNext(syncer.sharedUpcoming(), fields);
     if (!found) {
-      return { found: false, name: '', start: '', days_until: -1, location: '', calendar: '' };
+      return { found: 0, name: '', start: '', days_until: -1, location: '', calendar: '' };
     }
     const language = config.language;
     return {
-      found: true,
+      found: 1,
       name: found.occurrence.name || pick(TEXT, language).untitled,
       start: formatStart(found.occurrence, language),
       days_until: daysUntil(found.occurrence, now),

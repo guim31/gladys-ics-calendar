@@ -1,61 +1,175 @@
-# Demo Devices Template
+# ICS Calendars
 
-This is the user documentation of the integration. Gladys re-hosts this file
-and shows a permanent **Documentation** link to it in the Configuration screen
-(in the user's language, with English as the fallback) — it is when
-configuring that the user needs it most. Keep the short onboarding hints in
-the `section` blocks of the manifest `config_schema`; put the long
-step-by-step (screenshots, troubleshooting…) here.
+Bring any calendar published in the iCalendar format (an `.ics` address) into Gladys: your Google calendar
+through its secret address, a published Outlook or iCloud calendar, your child's school timetable, the waste
+collection calendar of your town, the fixtures of your sports club, public holidays… Each address becomes a
+calendar in the Gladys **Calendar** view, kept up to date, and usable by the scenes like the calendars Gladys
+synchronizes itself.
 
-## What you get
+- **Each user adds their own calendars**, in the **My calendars** block of the integration page: up to five
+  addresses per person. The calendars are private until their owner shares them with the household.
+- **Recurring events** (every Monday, the first Tuesday of the month…), exceptions, moved or cancelled
+  occurrences, full-day events and time zones (Outlook and Exchange ones included) are handled.
+- A **dashboard widget**, two **scene triggers** (an event changed, a calendar unreachable) and a **scene
+  action** (find the next event) complete what Gladys already offers.
 
-Six demo devices show up after installation: a weather station (real data
-from Open-Meteo), a switch, a dimmable light, a smart plug with power
-metering, a motion sensor and a camera.
+> Tested with its automated test suite and real calendar files (Google, Apple, Outlook, French national
+> education), not yet on many real Gladys instances: feedback welcome on the Gladys forum or in the GitHub
+> issues.
 
-## Configuration
+## What you need
 
-1. Open the **Configuration** tab of the integration.
-2. Set the **latitude** and **longitude** the demo weather station should
-   observe (they default to Paris), and pick your temperature unit.
-   The **refresh interval** sets how often the weather station and the
-   plug's power are read: every 5 minutes by default, every minute at most.
-3. Save: the devices appear in the **Discovery** tab, ready to be added.
+- Gladys Assistant 5.2.0 or later.
+- The `.ics` address of each calendar (see below). No account to create, no API key.
+- Internet access from Gladys, to download the calendars.
 
-The **Prefer the local connection** toggle drives the demo plug: it reports
-the channel it actually uses as a badge (local or cloud), with an orange dot
-when it runs degraded (local refused, cloud fallback).
+## Install and add your calendars
 
-## Actions
+1. Install the integration: **Integrations → Install from GitHub**, address
+   `https://github.com/guim31/gladys-ics-calendar`.
+2. Open its page. Every user of Gladys, not only the administrator, sees the **My calendars** block there.
+3. Paste up to five addresses, each with an optional name (otherwise the name the calendar has in the file is
+   used), then click **Enable for me**. `webcal://` addresses are accepted as they are.
+4. After a few seconds, your calendars appear under the form. For each one:
+   - **Synchronize this calendar**: switch it off to stop downloading it (its events are removed from Gladys);
+   - **Share with the household**: the calendar becomes visible to everyone, **and only then** can it trigger
+     scenes and appear on the dashboard widget.
 
-- **Test the weather provider** — performs a live request to Open-Meteo and
-  shows the current temperature and humidity under the button.
-- **Identify a device** — pick one of your devices in the list and it will
-  signal itself (the demo light "blinks" in the logs).
+The addresses are stored as secrets: Gladys never shows them again. To change one, type the new address in its
+field and save: a new calendar is created (private, like every new calendar) and the old one is deleted. To
+remove a calendar, type any character in its address field, erase it, and save.
 
-## Scenes
+### Where to find the .ics address
 
-The integration adds its own cards to the scene editor (Gladys 5.1 or
-later), under the **Integrations** category:
+- **Google Calendar**: on a computer, **Settings → Settings for my calendars →** your calendar **→ Integrate
+  calendar → Secret address in iCal format**. This address gives read access to your whole calendar: keep it
+  to yourself. A public calendar also has a **Public address in iCal format**.
+- **Outlook / Microsoft 365**: **Settings → Calendar → Shared calendars → Publish a calendar**, choose the
+  calendar and "Can view all details", then copy the **ICS** link.
+- **iCloud**: in the Calendar app, share the calendar as a **Public calendar** and copy its link
+  (`webcal://…`).
+- **School portals, town halls, clubs**: look for "Export", "Subscribe", "iCal" or "ICS". Pronote, for
+  example, offers an iCal export of the timetable when the school enabled it.
+- **Nextcloud and other servers asking for a password**: write it in the address,
+  `https://user:password@server/…`; it is sent as a standard authentication.
 
-- **Motion detected** (trigger) — starts the scene when a demo motion sensor
-  sees something move. Optionally pick the sensor and what moved (person,
-  animal); left empty, any detection matches. The following actions can
-  read what moved with `{{triggerEvent.data.target}}`.
-- **Identify a device** (action) — makes the chosen device signal itself.
-  It returns whether the device could signal itself, so the following
-  actions can depend on it.
+## Settings of the administrator
 
-## Dashboard
+In the **Configuration** tab, for all the users:
 
-Add the **Demo status** widget to a dashboard: it shows the live
-temperature of the weather station and the power of the office plug, the
-connection the plug currently uses (orange when degraded) and the observed
-location. Its **Identify the light** button makes the demo light signal
-itself.
+- **Download every**: 15, 30 or 60 minutes (30 by default). A calendar that did not change costs almost
+  nothing: the integration asks the server whether the file changed and only downloads it when it did, and
+  once a day in full.
+- **Show events up to**: how far ahead recurring events are expanded, from 3 to 24 months (12 by default).
+  Events older than 90 days are removed from Gladys.
+- **Watch changes over (days)**: the horizon of the "Event changed" trigger (7 days by default).
+- **Unreachable after (hours)**: the delay before the "Calendar unreachable" trigger (6 hours by default).
+- **Language of the scene texts**: the dates and labels handed to scenes, and the name given to events
+  without a title.
+
+The **Sync now** button downloads every calendar immediately and says which ones failed, and why.
+
+## In Gladys
+
+The calendars appear in the **Calendar** view like the others, with their own color. Everything Gladys does
+with its calendars works with them, as soon as they are **shared**:
+
+- the trigger **Calendar event is coming** (for example 15 minutes before the start of an event whose name
+  contains "Recycling");
+- the actions **Condition on calendar events** and **Get calendar events** (today, tomorrow, the next
+  hours);
+- the calendar chip of the dashboard and the assistant.
+
+Gladys never writes to your calendars: an event created or modified in Gladys stays in Gladys; the next
+download brings back the content of the source calendar.
+
+## Dashboard widget
+
+**Upcoming events** lists the events of the shared calendars (eight at most): today, tomorrow, then the
+next days, with the time, and the calendar name when several are shown. Tap an event to read its place, its
+description and open its link.
+
+- **Calendars**: names of shared calendars, separated by commas; empty for all of them.
+- **Period**: today, 3, 7, 14 or 31 days.
+
+A calendar that can no longer be downloaded shows as a red line; the **Sync now** button downloads
+everything again.
+
+## Scene triggers
+
+Both triggers concern **shared** calendars only. Their **Calendar** filter takes the exact name of a calendar
+(empty: any of them).
+
+### Event changed in a calendar
+
+Fires when, between two downloads, an event of the coming days (7 by default) was **added**, **cancelled**,
+**rescheduled**, or **renamed or moved elsewhere**. The **Change** filter keeps only some of them. Passed on
+to the scene: the event, its start ("Tuesday 13 October, 10:00"), the days until it, its place, the change
+and the calendar.
+
+The first download after a restart of the integration serves as a reference: changes made while it was
+stopped are not reported. When more than ten events change at once (a calendar exported again), nothing
+fires.
+
+### Calendar unreachable
+
+Fires once when a shared calendar could not be downloaded for the configured number of hours (an expired
+link, an address regenerated in Google, a server down). Passed on: the calendar, its owner, the error and the
+hours elapsed. It fires again only after the calendar came back.
+
+## Scene action "Find the next calendar event"
+
+Looks for the next event of the shared calendars whose title contains a text (case and accents ignored),
+however far ahead, an event in progress included. Optional **Calendar** filter. Results for the following
+steps: event found (1 yes, 0 no), event, start, days until the event (0 today, -1 when nothing is found), place
+and calendar.
+
+## Scene examples
+
+- **Waste collection**: trigger **Scheduled trigger** every evening at 19:00, action **Find the next calendar
+  event** with "recycling", condition "days until the event = 1", then **Send Message** "Put out the
+  recycling bin tonight".
+- **Cancelled class**: trigger **Event changed in a calendar** on the "School" calendar, change "Cancelled",
+  then **Send Message** "{{event}} of {{start}} is cancelled".
+- **Expired link**: trigger **Calendar unreachable**, then **Send Message** "The calendar {{calendar}} of
+  {{owner}} no longer downloads: {{error}}".
 
 ## Troubleshooting
 
-The integration logs everything it does: check the integration logs from the
-Gladys UI (or `docker logs` on the host) with `LOG_LEVEL=debug` for the full
-detail.
+- **My calendar does not appear under the form**: the address is wrong or the server refuses it. The
+  administrator sees the reason with **Sync now**, and in the integration logs (where the address is reduced to
+  its server name).
+- **"The address does not return an iCalendar file"**: the link leads to a web page (a login page, an HTML
+  share page). Copy the link meant for calendar applications (iCal, ICS, webcal).
+- **HTTP 404 on a Google calendar**: the secret address was reset in Google; paste the new one.
+- **The calendar is not on the widget nor in the scenes**: share it with the household in **My calendars**.
+- **Events are one hour off**: check the time zone of Gladys (**Settings → System**); the integration uses
+  it for the dates.
+- **A change takes time to show**: Google refreshes its secret addresses itself, sometimes only every few
+  hours; use **Sync now** to check on the integration side.
+
+## Limits
+
+- Read only: Gladys never writes to the source calendar.
+- Five calendars per user, 9,000 events per calendar (over that, the oldest past events are left out),
+  occurrences from 90 days back to 24 months ahead at most.
+- A calendar file of more than 20 MB, or a server answering in more than 30 seconds, is refused.
+- The core of Gladys accepts 30 calendar writes per minute: with many large calendars, the first
+  synchronization takes a few minutes.
+- Calendars needing a sign-in other than a password in the address (OAuth Google or Microsoft accounts) are
+  not supported: use their published (`.ics`) address.
+- The changes of an event are seen at the next download: the trigger is as fast as **Download every**.
+
+## Privacy and security
+
+- The addresses are secrets stored by Gladys in the account of each user; the integration keeps none on disk,
+  never writes them to its logs (only the server name) and identifies the calendars by a one-way digest.
+- The integration only stores, in its `/data` volume, since when each calendar fails (no address, no event).
+- Private calendars stay with their owner: the widget and the scenes only see the shared ones.
+
+## Credits
+
+iCalendar parsing: [node-ical](https://github.com/jens-maus/node-ical) (Apache-2.0). Test files taken from
+node-ical, from [ical](https://github.com/allenporter/ical) by Allen Porter and from
+[Home Assistant](https://github.com/home-assistant/core) (Apache-2.0), whose Remote Calendar integration
+inspired this one. Not affiliated with Google, Microsoft, Apple, Index Éducation nor Home Assistant.

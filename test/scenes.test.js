@@ -137,7 +137,7 @@ test('"Find the next calendar event" searches the shared calendars, accents and 
     success: true,
     data: {
       outputs: {
-        found: true,
+        found: 1,
         name: 'EDUCATION PHYSIQUE & SPORTIVE',
         start: 'mardi 13 octobre, 10:00',
         days_until: 1,
@@ -155,7 +155,7 @@ test('"Find the next calendar event" searches the shared calendars, accents and 
 
   const none = await world.fake.sceneAction('next_event', { contains: 'piscine' });
   assert.deepEqual(none.data.outputs, {
-    found: false,
+    found: 0,
     name: '',
     start: '',
     days_until: -1,
@@ -167,7 +167,7 @@ test('"Find the next calendar event" searches the shared calendars, accents and 
   world.fake.calendars[0].shared = false;
   await world.accountUpdated('alice');
   const hidden = await world.fake.sceneAction('next_event', {});
-  assert.equal(hidden.data.outputs.found, false);
+  assert.equal(hidden.data.outputs.found, 0);
 });
 
 test('a running full-day event is the next one, "today"', () => {
