@@ -8,20 +8,23 @@ contributors.
 A Gladys Assistant **external integration**: a Node.js service (Node 22+, ESM,
 no build step) that runs in its own sandboxed Docker container and talks to
 Gladys through
-[`@gladysassistant/integration-sdk`](https://github.com/GladysAssistant/integration-sdk-js),
-its only runtime dependency. It started from the official JavaScript template.
+[`@gladysassistant/integration-sdk`](https://github.com/GladysAssistant/integration-sdk-js).
+Its other runtime dependency is [`node-ical`](https://github.com/jens-maus/node-ical)
+(iCalendar parsing and recurrence expansion). It is a `calendar`-type
+integration (Gladys 5.2.0+): it pushes calendars and events into the core
+calendar store, per user. It started from the official JavaScript template.
 
 ## Commands
 
 ```bash
 npm install
 npm test                                  # node --test, the built-in runner
-node --test test/devices.test.js          # one file
-node --test --test-name-pattern "plug"    # tests whose name matches
+node --test test/sync.test.js             # one file
+node --test --test-name-pattern "webcal"  # tests whose name matches
 npm run lint                              # ESLint
 npm run format:check                      # Prettier, as the CI runs it
 npm run format                            # Prettier, fix in place
-npx github:GladysAssistant/integration-store .   # store admission checks
+npx -y github:GladysAssistant/integration-store --skip-image-check .   # store admission checks
 ```
 
 The CI (`.github/workflows/ci.yml`) runs `format:check`, `lint` and `test` on
@@ -31,16 +34,27 @@ pushing.
 ## Architecture
 
 ```
-index.js                          SDK wiring only: handlers registered before connect()
-src/devices/index.js              registry of the device blueprints + dispatch helpers
-src/devices/<type>.js             one device type per file (buildDevice, onPoll, onSetValue...)
-src/scenes.js                     scene action handlers (manifest `scene_actions`)
-src/widgets.js                    dashboard widget handlers (manifest `widgets`)
-src/config.js                     DEFAULT_CONFIG (mirrors the manifest defaults) + normalization
-src/weather.js                    example driver (Open-Meteo)
-gladys-assistant-integration.json manifest: name, config_schema, actions, image...
-docs/en.md, docs/fr.md            user documentation, re-hosted by Gladys (mandatory)
+index.js                          SDK wiring only: src/app.js registers the handlers before connect()
+src/app.js                        every SDK handler, the periodic refresh, the scene events
+src/syncer.js                     per user / per feed: download, publish, delete, outages, changes
+src/fetcher.js                    conditional download (ETag / Last-Modified), 20 MB / 30 s bounds
+src/ics.js                        node-ical: parsing, recurrence expansion, cancelled occurrences
+src/events.js                     occurrences -> host API events, disjoint windows of 500
+src/changes.js                    diff of two downloads (scene trigger "event_changed")
+src/scenes.js                     scene trigger data, scene action "next_event"
+src/widgets.js                    dashboard widget "upcoming_events"
+src/limiter.js                    25 calendar writes per minute (the core allows 30)
+src/url.js                        webcal -> https, credentials -> Basic header, masking, digests
+src/format.js, src/time.js        dates for people; calendar-date arithmetic in TZ
+src/i18n.js                       every text of the code, en/fr/de/es
+src/config.js                     DEFAULT_CONFIG (mirrors the manifest defaults), account slots
+src/store.js                      /data/state.json: outages only (DATA_DIR locally)
+gladys-assistant-integration.json manifest: config_schema, account_schema, actions, scenes, widget
+docs/{en,fr,de,es}.md             user documentation, re-hosted by Gladys (same sections)
 test/                             node --test, against the SDK's fake Gladys (integration-sdk/testing)
+test/helpers/world.js             fake Gladys + fake web server + clock + memory store, TZ=Europe/Paris
+test/fixtures/feeds/              real feeds (Google, Apple, Education ministry) and test files of
+                                  node-ical, ical and Home Assistant (Apache-2.0)
 .github/scripts/release.mjs       release helpers (manifest bump, changelog), tested in test/
 ```
 
@@ -70,8 +84,10 @@ test/                             node --test, against the SDK's fake Gladys (in
   `type: "provider"`: 5.1.0). `test/manifest.test.js` ties the manifest to the
   code (defaults, action, scene and widget handlers): change both sides
   together.
-- **User-facing text** is bilingual (English and French): action messages,
-  manifest texts, and `docs/en.md` / `docs/fr.md`, kept in sync.
+- **User-facing text** exists in English, French, German and Spanish: action
+  messages, widget texts, scene texts, manifest texts, and `docs/en.md`,
+  `docs/fr.md`, `docs/de.md`, `docs/es.md` with the same sections, kept in
+  sync. `test/i18n.test.js` checks it.
 - **Style.** Prettier formats, ESLint catches mistakes. Comments explain why,
   in English. Tests never touch the network.
 
@@ -211,3 +227,68 @@ long, et sur un « Sie »/« Ihr… » de politesse en allemand. Le store exige 
 - Fichier `LICENSE` Apache-2.0 (texte complet) à la racine.
 - `transports` : `local` seul quand le cloud n'est qu'une option annexe.
 - Docs `en`, `fr`, `de`, `es` avec les mêmes sections.
+
+## Pièges découverts sur cette intégration (Calendriers ICS)
+
+**Type `calendar` du cœur (vérifié dans v5.2.0)**
+
+- Le contrat est dans `docs/specs/external-integrations/capabilities/calendar-type.md` du cœur et la
+  section « Calendar providers » du README du SDK. Comptes **par utilisateur** (`account_schema`,
+  bloc « Mes calendriers »), ids **préfixés par l'utilisateur** (`ext:<selector>:<user>:…`, 255 max),
+  50 calendriers par utilisateur, 500 événements par requête, 10 000 par calendrier, **30 écritures
+  (POST/DELETE) par minute pour toute l'intégration**.
+- Une requête avec `window` **remplace** le contenu de la fenêtre : jamais deux requêtes sur la même
+  fenêtre (la seconde efface la première). Ici, chaque publication couvre toute la ligne du temps
+  [1970, 2200) en sous-fenêtres disjointes : un événement disparu du flux, trop ancien ou au-delà d'un
+  horizon raccourci part sans comptabilité. Un événement à cheval sur deux sous-fenêtres va dans les
+  deux.
+- Le cœur range une journée entière aux **minuits de son fuseau** ; le faux Gladys du SDK la lit à
+  minuit **UTC**. Les bornes intérieures des fenêtres sont à **midi local** : une journée entière
+  tombe dans les mêmes fenêtres avec un écart de fuseau jusqu'à 11 h (un événement hors de sa fenêtre
+  fait échouer toute la requête en 400).
+- **`shared` est la frontière des automatisations** : les scènes du cœur ne voient que les calendriers
+  partagés. Widget, déclencheurs et action de scène suivent la même règle (un tableau de bord et une
+  scène sont l'affaire du foyer).
+- Champ `secret` d'un `account_schema` : jamais réaffiché ; `null` = inchangé. Le front envoie `""`
+  pour un secret touché puis effacé, et le serveur l'enregistre : c'est la seule façon de **vider**
+  un emplacement (à dire dans la doc). `required` n'est pas vérifié côté serveur pour un compte.
+- `onWidgetAction` ne reçoit pas la langue : le toast suit le réglage `language`. Le message d'une
+  action de configuration peut être un objet multilingue : le rapport « Synchroniser maintenant » l'est.
+- Ne jamais réutiliser l'id d'un calendrier quand l'adresse change : un calendrier partagé recevrait
+  un autre flux (privé) sous les yeux du foyer. L'id dérive d'une empreinte de l'adresse.
+
+**node-ical 0.27**
+
+- Une seule `RRULE` illisible fait échouer **tout** `parseICS` : repli UID par UID
+  (`parseEventByEvent`), un événement récurrent et ses exceptions ensemble.
+- Une date seule (`VALUE=DATE`) est construite à **minuit local du processus** (ou du `TZID` s'il y en
+  a un) : lire la date avec les accesseurs locaux, **pas en UTC** comme le suggère son README.
+- `SUMMARY;LANGUAGE=fr:…` donne `{ params, val }`, pas une chaîne (`textOf`).
+- `expandRecurringEvent` rend aussi les occurrences annulées (`STATUS:CANCELLED` sur l'exception) :
+  les filtrer. Il existe des exceptions avec `DTEND` avant `DTSTART`.
+- Il signale ses réparations par `console.warn`, une ligne par événement et par téléchargement :
+  compter au lieu de laisser inonder les logs.
+
+- **Mémoire** : mesurer le pic du **cgroup** (`/sys/fs/cgroup/memory.peak` dans le conteneur), pas
+  `process.memoryUsage().rss`, qui compte les pages partagées du binaire Node et annonçait 170 à 200 Mo
+  quand le cgroup plafonnait à 100 Mo. Mesuré le 12/10/2026 dans le bac à sable (256 Mo) : trois flux
+  de 6 Mo (15 000 événements, 36 000 occurrences chacun) → pic de 100 Mo ; un flux de 19,7 Mo
+  (52 000 événements) → 116 Mo ; au repos, 20 Mo. Les options V8 (`--max-semi-space-size`) n'y
+  changent rien. `syncAccount` traite quand même les flux **un par un**, du téléchargement à la
+  publication.
+
+**Fournisseurs**
+
+- iCloud répond en **gzip même sans `Accept-Encoding`** : `fetch` décode, `curl` sans `--compressed`
+  non.
+- Le flux de l'Éducation nationale **régénère ses UID à chaque export** (`<horodatage>-Zone-C@…`) :
+  un « annulé » et un « ajouté » identiques au même moment ne sont pas un changement
+  (`dropReissued`). Ses `DTEND` égalent `DTSTART` sur un jour : couvrir le jour (RFC 5545).
+- `fetch` refuse une adresse avec identifiants (`https://u:p@…`) : les passer en en-tête Basic. Ses
+  `TypeError` contiennent l'adresse (« Failed to parse URL from … ») : ne jamais journaliser leur
+  message, seulement le code de la cause.
+
+**Scènes (déjà noté sur gladys-holidays)**
+
+- « Condition sur variables » compare strictement (`===`) une valeur saisie (nombre ou texte) : une
+  sortie `boolean` n'est jamais égale. `found` est un nombre (1/0).

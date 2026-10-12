@@ -1,45 +1,89 @@
 // -----------------------------------------------------------------------------
-// Integration configuration.
+// Configuration: the admin settings (manifest `config_schema`) and the
+// per-user account (manifest `account_schema`, the "My calendars" block).
 //
-// The configuration is filled in by the user in Gladys, from the `config_schema`
-// declared in `gladys-assistant-integration.json`. The SDK fetches it for you
-// (`gladys.getConfig()`) and notifies you of every change through
-// `gladys.onConfigUpdated()`.
-//
-// This module only provides defaults and normalizes the received object, so the
-// rest of the code never has to deal with `undefined`.
+// DEFAULT_CONFIG mirrors the `default` values of the manifest (checked by
+// test/manifest.test.js); the normalizers turn what the forms send (strings,
+// blanks, `undefined`) into values the rest of the code can trust.
 // -----------------------------------------------------------------------------
 
-// Defaults: they MUST stay consistent with the `default` values declared in the
-// `config_schema` of the manifest.
+export const LANGUAGES = ['en', 'fr', 'de', 'es'];
+
+// Choices of the `select` fields, as the manifest declares them (strings).
+export const REFRESH_MINUTES = ['15', '30', '60'];
+export const HORIZON_MONTHS = ['3', '6', '12', '24'];
+
 export const DEFAULT_CONFIG = {
-  latitude: 48.8566, // Paris
-  longitude: 2.3522,
-  unit: 'celsius', // 'celsius' | 'fahrenheit'
-  // Seconds between two reads of the polled sensors. Gladys polls at most once
-  // a minute: slower intervals are applied by skipping polls (see
-  // createPoller in src/devices/index.js).
-  poll_frequency: 300,
-  // Reserved key (NOT in config_schema): because the manifest declares both
-  // 'local' and 'cloud' in its `transports` field, Gladys shows a standard
-  // "Prefer the local connection" toggle and sends the user's choice here.
-  // Read-only for the integration; defaults to true.
-  GLADYS_PREFER_LOCAL: true,
+  refresh_minutes: '30',
+  horizon_months: '12',
+  unreachable_hours: 6,
+  change_days: 7,
+  language: 'fr',
 };
 
+// Bounds of the `number` fields (integers: the Gladys form renders them
+// without `step`, see CLAUDE.md).
+const UNREACHABLE_HOURS = { min: 1, max: 168 };
+const CHANGE_DAYS = { min: 1, max: 31 };
+
+// Feeds per user: the `account_schema` declares this many "name + address"
+// pairs (`name_1`/`url_1` … `name_5`/`url_5`).
+export const SLOT_COUNT = 5;
+
+function integerIn(value, { min, max }, fallback) {
+  const number = typeof value === 'string' ? Number(value.trim().replace(',', '.')) : value;
+  if (typeof number !== 'number' || !Number.isFinite(number)) {
+    return fallback;
+  }
+  return Math.min(max, Math.max(min, Math.round(number)));
+}
+
+function oneOf(value, choices, fallback) {
+  const text = value === undefined || value === null ? '' : String(value);
+  return choices.includes(text) ? text : fallback;
+}
+
 /**
- * Merge the user config with the defaults.
- * @param {Record<string, unknown>} raw config returned by the SDK
+ * Merge the admin config with the defaults and coerce every value.
+ * @param {Record<string, unknown>} [raw] config returned by the SDK
  */
 export function normalizeConfig(raw = {}) {
   return {
-    ...DEFAULT_CONFIG,
-    ...raw,
-    // Force the types: config may arrive as strings from a form.
-    latitude: Number(raw.latitude ?? DEFAULT_CONFIG.latitude),
-    longitude: Number(raw.longitude ?? DEFAULT_CONFIG.longitude),
-    poll_frequency: Number(raw.poll_frequency ?? DEFAULT_CONFIG.poll_frequency),
-    // The preference is a boolean; anything but an explicit false means true.
-    GLADYS_PREFER_LOCAL: raw.GLADYS_PREFER_LOCAL !== false,
+    refresh_minutes: oneOf(raw.refresh_minutes, REFRESH_MINUTES, DEFAULT_CONFIG.refresh_minutes),
+    horizon_months: oneOf(raw.horizon_months, HORIZON_MONTHS, DEFAULT_CONFIG.horizon_months),
+    unreachable_hours: integerIn(
+      raw.unreachable_hours,
+      UNREACHABLE_HOURS,
+      DEFAULT_CONFIG.unreachable_hours,
+    ),
+    change_days: integerIn(raw.change_days, CHANGE_DAYS, DEFAULT_CONFIG.change_days),
+    language: oneOf(raw.language, LANGUAGES, DEFAULT_CONFIG.language),
   };
+}
+
+/** Refresh period, in milliseconds. */
+export function refreshMs(config) {
+  return Number(config.refresh_minutes) * 60 * 1000;
+}
+
+/**
+ * The feeds a user typed in their account: one entry per filled address, in
+ * slot order. The address is kept raw here (src/url.js validates it).
+ * @param {Record<string, unknown>} [account] the `account_schema` values
+ * @returns {{ slot: number, name: string, url: string }[]}
+ */
+export function parseAccount(account = {}) {
+  const slots = [];
+  for (let slot = 1; slot <= SLOT_COUNT; slot += 1) {
+    const url = typeof account[`url_${slot}`] === 'string' ? account[`url_${slot}`].trim() : '';
+    if (!url) {
+      continue;
+    }
+    const name =
+      typeof account[`name_${slot}`] === 'string'
+        ? account[`name_${slot}`].replace(/\s+/g, ' ').trim()
+        : '';
+    slots.push({ slot, name, url });
+  }
+  return slots;
 }
