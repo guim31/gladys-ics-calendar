@@ -10,6 +10,8 @@ the notes of the version's GitHub Release.
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-10-12
+
 ### Added
 
 - Any calendar published as an iCalendar (`.ics`) address in the Gladys calendar: a Google calendar
@@ -28,4 +30,5 @@ the notes of the version's GitHub Release.
 - "Sync now" button, with a report of the calendars that failed and why.
 - Texts and documentation in English, French, German and Spanish; scene texts in French by default.
 
-[Unreleased]: https://github.com/guim31/gladys-ics-calendar/commits/main
+[Unreleased]: https://github.com/guim31/gladys-ics-calendar/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/guim31/gladys-ics-calendar/releases/tag/v1.0.0
