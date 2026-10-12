@@ -1,33 +1,66 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { normalizeConfig, DEFAULT_CONFIG } from '../src/config.js';
+import {
+  DEFAULT_CONFIG,
+  SLOT_COUNT,
+  normalizeConfig,
+  parseAccount,
+  refreshMs,
+} from '../src/config.js';
 
-test('normalizeConfig returns the defaults when called with no argument', () => {
+test('defaults, and values coerced from the form', () => {
   assert.deepEqual(normalizeConfig(), DEFAULT_CONFIG);
+  assert.deepEqual(
+    normalizeConfig({
+      refresh_minutes: '15',
+      horizon_months: '24',
+      unreachable_hours: '12',
+      change_days: 3.4,
+      language: 'de',
+    }),
+    {
+      refresh_minutes: '15',
+      horizon_months: '24',
+      unreachable_hours: 12,
+      change_days: 3,
+      language: 'de',
+    },
+  );
+  assert.deepEqual(
+    normalizeConfig({
+      refresh_minutes: 5,
+      horizon_months: '120',
+      unreachable_hours: 1000,
+      change_days: 0,
+      language: 'it',
+    }),
+    {
+      refresh_minutes: '30',
+      horizon_months: '12',
+      unreachable_hours: 168,
+      change_days: 1,
+      language: 'fr',
+    },
+  );
+  assert.equal(refreshMs(normalizeConfig({ refresh_minutes: '60' })), 3_600_000);
 });
 
-test('normalizeConfig keeps user values over the defaults', () => {
-  const config = normalizeConfig({ latitude: 45.5, longitude: -73.6, unit: 'fahrenheit' });
-  assert.equal(config.latitude, 45.5);
-  assert.equal(config.longitude, -73.6);
-  assert.equal(config.unit, 'fahrenheit');
-});
-
-test('normalizeConfig coerces numeric strings coming from a form', () => {
-  const config = normalizeConfig({ latitude: '48.8', longitude: '2.3', poll_frequency: '600' });
-  assert.equal(config.latitude, 48.8);
-  assert.equal(config.longitude, 2.3);
-  assert.equal(config.poll_frequency, 600);
-  assert.equal(typeof config.poll_frequency, 'number');
-});
-
-test('normalizeConfig falls back to the default for a missing numeric field', () => {
-  const config = normalizeConfig({ unit: 'celsius' });
-  assert.equal(config.poll_frequency, DEFAULT_CONFIG.poll_frequency);
-});
-
-test('GLADYS_PREFER_LOCAL defaults to true and only an explicit false disables it', () => {
-  assert.equal(normalizeConfig().GLADYS_PREFER_LOCAL, true);
-  assert.equal(normalizeConfig({ GLADYS_PREFER_LOCAL: true }).GLADYS_PREFER_LOCAL, true);
-  assert.equal(normalizeConfig({ GLADYS_PREFER_LOCAL: false }).GLADYS_PREFER_LOCAL, false);
+test('the account gives the filled addresses, in slot order', () => {
+  assert.equal(SLOT_COUNT, 5);
+  assert.deepEqual(
+    parseAccount({
+      name_1: ' Famille  Martin ',
+      url_1: ' https://a.example/a.ics ',
+      name_2: 'Unused',
+      url_2: '',
+      url_4: 'webcal://b.example/b.ics',
+      url_6: 'https://ignored.example',
+    }),
+    [
+      { slot: 1, name: 'Famille Martin', url: 'https://a.example/a.ics' },
+      { slot: 4, name: '', url: 'webcal://b.example/b.ics' },
+    ],
+  );
+  assert.deepEqual(parseAccount(), []);
+  assert.deepEqual(parseAccount({ url_1: null, url_2: 42 }), []);
 });

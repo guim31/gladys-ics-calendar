@@ -1,8 +1,8 @@
 {
-  "name": "gladys-integration-template-js",
+  "name": "gladys-ics-calendar",
   "version": "1.0.0",
   "private": true,
-  "description": "Official starter template to build an external integration for Gladys Assistant with the JavaScript SDK.",
+  "description": "Gladys Assistant integration: any iCalendar (.ics) feed (Google secret address, Outlook, iCloud, school timetables, waste collection) in the Gladys calendar.",
   "type": "module",
   "main": "index.js",
   "scripts": {
@@ -16,7 +16,8 @@
     "node": ">=22"
   },
   "dependencies": {
-    "@gladysassistant/integration-sdk": "^0.15.0"
+    "@gladysassistant/integration-sdk": "^0.15.0",
+    "node-ical": "^0.27.3"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
