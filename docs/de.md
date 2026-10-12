@@ -76,7 +76,8 @@ Im Reiter **Konfiguration**, für alle Benutzer:
   ohne Titel.
 
 Die Schaltfläche **Jetzt synchronisieren** lädt sofort alle Kalender herunter und sagt, welche
-fehlgeschlagen sind und warum.
+fehlgeschlagen sind und warum. Bei vielen großen Kalendern antwortet sie nach 100 Sekunden, dass die
+Synchronisierung im Hintergrund weiterläuft.
 
 ## In Gladys
 

@@ -76,7 +76,8 @@ Dans l'onglet **Configuration**, pour tous les utilisateurs :
   événements sans titre.
 
 Le bouton **Synchroniser maintenant** télécharge tout de suite tous les calendriers et dit lesquels ont
-échoué, et pourquoi.
+échoué, et pourquoi. Avec beaucoup de gros calendriers, il répond au bout de 100 secondes que la
+synchronisation continue en arrière-plan.
 
 ## Dans Gladys
 

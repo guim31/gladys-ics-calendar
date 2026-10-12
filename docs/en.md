@@ -67,7 +67,8 @@ In the **Configuration** tab, for all the users:
 - **Language of the scene texts**: the dates and labels handed to scenes, and the name given to events
   without a title.
 
-The **Sync now** button downloads every calendar immediately and says which ones failed, and why.
+The **Sync now** button downloads every calendar immediately and says which ones failed, and why. With many large calendars, it answers after 100 seconds that the synchronization goes on in
+the background.
 
 ## In Gladys
 

@@ -75,7 +75,8 @@ En la pestaña **Configuración**, para todos los usuarios:
   los eventos sin título.
 
 El botón **Sincronizar ahora** descarga de inmediato todos los calendarios e indica cuáles han fallado y por
-qué.
+qué. Con muchos calendarios grandes, responde a los 100 segundos que la sincronización continúa en segundo
+plano.
 
 ## En Gladys
 

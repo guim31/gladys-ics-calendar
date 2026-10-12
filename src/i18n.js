@@ -116,6 +116,7 @@ export const REPORT_TEXT = {
     synced: (ok, total) => `${ok} of ${total} calendar(s) synchronized.`,
     failed: (name, user, error) => `${name} (${user}): ${error}`,
     statusFailing: (count) => `${count} calendar(s) unreachable, see the integration logs.`,
+    started: 'Synchronization in progress: many calendars to write, it goes on in the background.',
   },
   fr: {
     noAccount:
@@ -124,6 +125,8 @@ export const REPORT_TEXT = {
     failed: (name, user, error) => `${name} (${user}) : ${error}`,
     statusFailing: (count) =>
       `${count} calendrier(s) injoignable(s), voir les logs de l'intégration.`,
+    started:
+      'Synchronisation en cours : beaucoup de calendriers à écrire, elle continue en arrière-plan.',
   },
   de: {
     noAccount:
@@ -131,6 +134,8 @@ export const REPORT_TEXT = {
     synced: (ok, total) => `${ok} von ${total} Kalender(n) synchronisiert.`,
     failed: (name, user, error) => `${name} (${user}): ${error}`,
     statusFailing: (count) => `${count} Kalender nicht erreichbar, siehe die Logs der Integration.`,
+    started:
+      'Synchronisierung läuft: viele Kalender zu schreiben, sie läuft im Hintergrund weiter.',
   },
   es: {
     noAccount:
@@ -139,6 +144,8 @@ export const REPORT_TEXT = {
     failed: (name, user, error) => `${name} (${user}): ${error}`,
     statusFailing: (count) =>
       `${count} calendario(s) inaccesible(s), consulte los registros de la integración.`,
+    started:
+      'Sincronización en curso: hay muchos calendarios que escribir, continúa en segundo plano.',
   },
 };
 

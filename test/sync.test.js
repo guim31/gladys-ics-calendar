@@ -427,3 +427,28 @@ test('no log line carries the secret part of an address', async (t) => {
     assert.ok(!output.includes(secret), `"${secret}" leaked in the logs`);
   }
 });
+
+test('"Sync now" answers before its deadline when the synchronization takes long', async () => {
+  const { createFakeGladys } = await import('@gladysassistant/integration-sdk/testing');
+  const { registerHandlers } = await import('../src/app.js');
+  const { createMemoryStore, createServer } = await import('./helpers/world.js');
+  let release;
+  const server = createServer({
+    [URLS.google]: () =>
+      new Promise((resolve) => (release = () => resolve({ body: feed('google-private.ics') }))),
+  });
+  const gladys = createFakeGladys({ calendarAccounts: [account('alice', { url_1: URLS.google })] });
+  const app = registerHandlers(gladys, {
+    fetchImpl: server.fetchImpl,
+    now: () => NOW,
+    store: createMemoryStore(),
+    limiter: { schedule: (fn) => Promise.resolve().then(fn) },
+    timers: false,
+    actionWaitMs: 20,
+  });
+  const ack = await gladys.fake.action('sync_now', {});
+  assert.match(ack.data.message.fr, /Synchronisation en cours/);
+  release();
+  await app.idle();
+  assert.equal(gladys.fake.calendars.length, 1);
+});

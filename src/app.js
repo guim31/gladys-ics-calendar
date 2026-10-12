@@ -11,6 +11,7 @@ import { createStore } from './store.js';
 import { Syncer, describe } from './syncer.js';
 import { SCENE_ACTIONS, TRIGGERS, changeEventData, unreachableEventData } from './scenes.js';
 import { UPCOMING_WIDGET, upcomingAction, upcomingContent } from './widgets.js';
+import { REPORT_TEXT, allLanguages, pick } from './i18n.js';
 
 const logger = createLogger({ name: 'app' });
 
@@ -26,11 +27,13 @@ export const ACTIONS = { SYNC_NOW: 'sync_now' };
  * @param {(ms: number) => Promise<void>} [deps.sleep]
  * @param {boolean} [deps.timers] false: no periodic refresh (tests)
  * @param {string} [deps.userAgent]
+ * @param {number} [deps.actionWaitMs] how long "Sync now" waits for the report
  */
 export function registerHandlers(gladys, deps = {}) {
   const now = deps.now ?? Date.now;
   const store = deps.store ?? createStore();
   const useTimers = deps.timers !== false;
+  const actionWaitMs = deps.actionWaitMs ?? 100_000;
   let config = normalizeConfig();
   let timer = null;
   let stopped = false;
@@ -125,10 +128,21 @@ export function registerHandlers(gladys, deps = {}) {
     pending = run('Synchronization', () => syncer.syncUser(userSelector, { force: true }));
   });
 
+  // The action waits 120 s at most (manifest `timeout_seconds`), and a first
+  // synchronization of many large calendars takes longer under the write
+  // rate limit: past `actionWaitMs`, say it goes on instead of timing out.
   gladys.onAction(ACTIONS.SYNC_NOW, async () => {
-    const report = await syncer.syncAll({ force: true });
-    refreshWidget();
-    return report;
+    let timer;
+    const late = new Promise((resolve) => {
+      timer = setTimeout(() => resolve(null), actionWaitMs);
+    });
+    const sync = syncer.syncAll({ force: true }).then((report) => {
+      refreshWidget();
+      return report;
+    });
+    const report = await Promise.race([sync, late]);
+    clearTimeout(timer);
+    return report ?? allLanguages((language) => pick(REPORT_TEXT, language).started);
   });
 
   gladys.onSceneAction('next_event', (fields) =>
