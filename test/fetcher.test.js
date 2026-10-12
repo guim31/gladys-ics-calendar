@@ -105,6 +105,9 @@ test('network errors and timeouts never carry the address', async () => {
   );
   assert.equal(invalid.code, ERROR_CODES.INVALID_URL);
 
+  // AbortSignal.timeout() does not hold the event loop (a real fetch holds
+  // it with its socket): keep it alive while the fake request hangs.
+  const keepAlive = setTimeout(() => {}, 5000);
   const timeout = await failure(
     fetchFeed(feed, {
       timeoutMs: 20,
@@ -114,5 +117,6 @@ test('network errors and timeouts never carry the address', async () => {
         }),
     }),
   );
+  clearTimeout(keepAlive);
   assert.equal(timeout.code, ERROR_CODES.TIMEOUT);
 });
