@@ -170,33 +170,33 @@ export class Syncer {
       }
     }
 
-    const fresh = [];
+    // One feed at a time, from download to publication: a parsed calendar
+    // weighs several times its file, never keep two of them in memory.
     for (const state of wanted) {
-      if (!state.sync) {
+      if (!state.sync || !(await this.download(state, { force }))) {
         continue;
       }
-      if (await this.download(state, { force })) {
-        fresh.push(state);
+      const calendar = this.calendarOf(state);
+      const known = calendars.find((candidate) => candidate.external_id === state.calendarId);
+      const unchanged =
+        known &&
+        known.name === calendar.name &&
+        known.color === calendar.color &&
+        (calendar.description === undefined || known.description === calendar.description);
+      if (!unchanged) {
+        try {
+          await this.write(() => this.gladys.publishCalendars(user, [calendar]));
+        } catch (err) {
+          logger.error(`Could not publish a calendar of ${user}: ${describe(err)}`);
+          state.pending = null;
+          continue;
+        }
+        if (known) {
+          Object.assign(known, calendar);
+        } else {
+          calendars.push({ ...calendar, user, sync: true, shared: false });
+        }
       }
-    }
-    if (fresh.length === 0) {
-      return;
-    }
-    try {
-      await this.write(() =>
-        this.gladys.publishCalendars(
-          user,
-          fresh.map((state) => this.calendarOf(state)),
-        ),
-      );
-    } catch (err) {
-      logger.error(`Could not publish the calendars of ${user}: ${describe(err)}`);
-      for (const state of fresh) {
-        state.pending = null;
-      }
-      return;
-    }
-    for (const state of fresh) {
       state.exists = true;
       await this.publishEvents(state);
     }

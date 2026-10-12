@@ -148,6 +148,25 @@ test('the first download of a new day is a full one, and republishes the rolling
   assert.ok(writes(world.fake).length > before);
 });
 
+test('a calendar whose name, color and description did not change is not published again', async () => {
+  const world = await createWorld(aliceAndBob());
+  const calendarWrites = world.fake.publishedCalendars.length;
+  assert.equal(calendarWrites, 3, 'one per feed at the first synchronization');
+  world.clock.now += DAY;
+  await world.sync();
+  assert.equal(world.fake.publishedCalendars.length, calendarWrites);
+  // Alice renames her school calendar: only that one is published.
+  world.fake.calendarAccounts[0].config.name_2 = 'Collège';
+  await world.accountUpdated('alice');
+  assert.deepEqual(
+    world.fake.publishedCalendars
+      .slice(calendarWrites)
+      .map((batch) => batch.calendars.map((c) => c.name)),
+    [['Collège']],
+  );
+  assert.ok(world.calendarNamed('Collège'));
+});
+
 test('a changed feed is republished: deleted events disappear, new ones appear', async () => {
   const world = await createWorld(aliceAndBob());
   const calendar = world.calendarNamed('Famille').external_id;

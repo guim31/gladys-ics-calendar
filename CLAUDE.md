@@ -269,6 +269,14 @@ long, et sur un « Sie »/« Ihr… » de politesse en allemand. Le store exige 
 - Il signale ses réparations par `console.warn`, une ligne par événement et par téléchargement :
   compter au lieu de laisser inonder les logs.
 
+- **Mémoire** : mesurer le pic du **cgroup** (`/sys/fs/cgroup/memory.peak` dans le conteneur), pas
+  `process.memoryUsage().rss`, qui compte les pages partagées du binaire Node et annonçait 170 à 200 Mo
+  quand le cgroup plafonnait à 100 Mo. Mesuré le 12/10/2026 dans le bac à sable (256 Mo) : trois flux
+  de 6 Mo (15 000 événements, 36 000 occurrences chacun) → pic de 100 Mo ; un flux de 19,7 Mo
+  (52 000 événements) → 116 Mo ; au repos, 20 Mo. Les options V8 (`--max-semi-space-size`) n'y
+  changent rien. `syncAccount` traite quand même les flux **un par un**, du téléchargement à la
+  publication.
+
 **Fournisseurs**
 
 - iCloud répond en **gzip même sans `Accept-Encoding`** : `fetch` décode, `curl` sans `--compressed`
