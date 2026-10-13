@@ -49,6 +49,7 @@ src/format.js, src/time.js        dates for people; calendar-date arithmetic in 
 src/i18n.js                       every text of the code, en/fr/de/es
 src/config.js                     DEFAULT_CONFIG (mirrors the manifest defaults), account slots
 src/store.js                      /data/state.json: outages only (DATA_DIR locally)
+src/problems.js                   ProblemLog: repeated failures logged once, and once when over
 gladys-assistant-integration.json manifest: config_schema, account_schema, actions, scenes, widget
 docs/{en,fr,de,es}.md             user documentation, re-hosted by Gladys (same sections)
 test/                             node --test, against the SDK's fake Gladys (integration-sdk/testing)
@@ -124,7 +125,17 @@ code de ce dépôt. Compléter ce fichier quand un nouveau piège est découvert
   `poll_frequency` vaut une valeur de la liste fixe, **en millisecondes** (1000, 2000, 10000,
   15000, 30000, 60000). Le template publie `poll_frequency: 300` sans `should_poll` : c'est faux,
   le cœur répond 400 à la découverte. Pour une cadence hors liste, publier `should_poll: false` et
-  pousser les états depuis le conteneur, en gardant un `onPoll` de repli.
+  pousser les états depuis le conteneur, en gardant un `onPoll` de repli. Issue
+  GladysAssistant/Gladys#3198 (correctif #3199 non publié) : les appareils déjà créés sans
+  `should_poll` ne seront jamais sondés, même après correction : ne jamais dépendre du seul `onPoll`.
+  Ici, aucun appareil : la synchronisation périodique est un minuteur interne (`schedule()` de
+  `src/app.js`), couvert par `test/logs.test.js`.
+- **Logs** : le niveau info ne garde que le cycle de vie (démarrage, flux injoignable / de nouveau
+  joignable, actions de l'utilisateur, erreurs utiles), jamais une ligne par synchronisation. Les
+  erreurs répétées passent par `src/problems.js` (`ProblemLog` : une ligne au début ou au changement
+  du problème, une au rétablissement, `debug` entre les deux ; état en mémoire, pour qu'un échec
+  soit redit une fois après un redémarrage). `LOG_LEVEL=debug` montre le détail ; aucun secret ni
+  adresse complète, à aucun niveau (`maskUrl`).
 - **`min` et `max` sont NOT NULL** dans `t_device_feature`, y compris pour `text/text` : sans eux,
   « Ajouter à Gladys » échoue en HTTP 422. Mettre 0/0, comme Zigbee2MQTT.
 - Un état publié sur une fonctionnalité **pas encore ajoutée** dans Gladys reçoit un 200 puis est
