@@ -12,6 +12,7 @@ import { Syncer, describe } from './syncer.js';
 import { SCENE_ACTIONS, TRIGGERS, changeEventData, unreachableEventData } from './scenes.js';
 import { UPCOMING_WIDGET, upcomingAction, upcomingContent } from './widgets.js';
 import { REPORT_TEXT, allLanguages, pick } from './i18n.js';
+import { ProblemLog } from './problems.js';
 
 const logger = createLogger({ name: 'app' });
 
@@ -39,6 +40,8 @@ export function registerHandlers(gladys, deps = {}) {
   let stopped = false;
   let loaded = null;
   let pending = Promise.resolve();
+  // A synchronization failing again and again: one line, not one per period.
+  const problems = new ProblemLog(logger);
 
   const syncer = new Syncer({
     gladys,
@@ -56,7 +59,9 @@ export function registerHandlers(gladys, deps = {}) {
           changeEventData(change, syncer.displayName(state), config.language, now()),
         );
       }
-      logger.info(`${changes.length} change(s) in ${syncer.displayName(state)} sent to the scenes`);
+      logger.debug(
+        `${changes.length} change(s) in ${syncer.displayName(state)} sent to the scenes`,
+      );
     },
     onUnreachable: async (state) => {
       await gladys.publishSceneEvent(
@@ -72,10 +77,11 @@ export function registerHandlers(gladys, deps = {}) {
   async function run(label, fn) {
     try {
       const result = await fn();
+      problems.recover('sync', 'Synchronization works again');
       refreshWidget();
       return result;
     } catch (err) {
-      logger.error(`${label} failed: ${describe(err)}`);
+      problems.fail('sync', `${label} failed: ${describe(err)}`, 'error');
       return undefined;
     }
   }

@@ -33,6 +33,7 @@ import { REPORT_TEXT, TEXT, allLanguages, errorText, pick } from './i18n.js';
 import { feedId, hostOf, maskUrl, normalizeFeedUrl, digest } from './url.js';
 import { addDays, addMonths, localDate, localMidnight } from './time.js';
 import { ERROR_CODES, FeedError } from './fetcher.js';
+import { ProblemLog } from './problems.js';
 
 const logger = createLogger({ name: 'sync' });
 
@@ -70,11 +71,18 @@ export class Syncer {
     this.feeds = new Map();
     this.ready = false;
     this.running = Promise.resolve();
+    // Failures repeated at every synchronization: one line when they start.
+    // In memory on purpose: after a restart, the first failure shows again.
+    this.problems = new ProblemLog(logger);
+    this.rateLimited = false;
   }
 
   /** Run `fn` after the synchronization in progress: one at a time. */
   exclusive(fn) {
-    const run = this.running.then(fn);
+    const run = this.running.then(() => {
+      this.rateLimited = false;
+      return fn();
+    });
     this.running = run.catch(() => {});
     return run;
   }
@@ -151,12 +159,17 @@ export class Syncer {
     const wantedIds = new Set(wanted.map((state) => state.calendarId).filter(Boolean));
     for (const calendar of calendars) {
       if (!wantedIds.has(calendar.external_id)) {
-        logger.info(
+        const key = `delete:${calendar.external_id}`;
+        // Once per removal, not again at each retry of a failing deletion.
+        logger[this.problems.active.has(key) ? 'debug' : 'info'](
           `Deleting calendar "${calendar.name}" of ${user}: its address left the account`,
         );
-        await this.write(() => this.gladys.deleteCalendar(calendar.external_id)).catch((err) =>
-          logger.warn(`Could not delete a calendar of ${user}: ${describe(err)}`),
-        );
+        try {
+          await this.write(() => this.gladys.deleteCalendar(calendar.external_id));
+          this.problems.recover(key);
+        } catch (err) {
+          this.problems.fail(key, `Could not delete a calendar of ${user}: ${describe(err)}`);
+        }
       }
     }
     for (const state of wanted) {
@@ -187,7 +200,11 @@ export class Syncer {
         try {
           await this.write(() => this.gladys.publishCalendars(user, [calendar]));
         } catch (err) {
-          logger.error(`Could not publish a calendar of ${user}: ${describe(err)}`);
+          this.problems.fail(
+            `publish:${state.key}`,
+            `Could not publish a calendar of ${user}: ${describe(err)}`,
+            'error',
+          );
           state.pending = null;
           continue;
         }
@@ -307,7 +324,7 @@ export class Syncer {
     }
     await this.succeeded(state);
     state.pending = { parsed, hash };
-    logger.info(
+    logger.debug(
       `Downloaded ${this.displayName(state)} of ${state.user} (${maskUrl(state.feed.url)}): ${parsed.events.length} event(s)`,
     );
     return true;
@@ -316,6 +333,7 @@ export class Syncer {
   async succeeded(state) {
     state.lastSuccessAt = this.now();
     state.lastError = null;
+    this.problems.recover(`download:${state.key}`);
     if (state.failingSince !== null || state.alerted) {
       logger.info(`${this.displayName(state)} of ${state.user} is reachable again`);
       state.failingSince = null;
@@ -331,7 +349,8 @@ export class Syncer {
     if (state.failingSince === null) {
       state.failingSince = now;
     }
-    logger.warn(
+    this.problems.fail(
+      `download:${state.key}`,
       `Could not download ${this.displayName(state)} of ${state.user} (${state.feed ? maskUrl(state.feed.url) : 'invalid address'}): ${state.lastError.message}`,
     );
     const hours = this.getConfig().unreachable_hours;
@@ -364,10 +383,15 @@ export class Syncer {
     });
     const { requests, dropped: crowded } = splitWindows(kept);
     const skipped = unexpanded + parsed.skipped;
+    // The same feed comes back with the same flaws: said again only when
+    // the counts change.
     if (skipped + dropped + crowded > 0) {
-      logger.warn(
+      this.problems.fail(
+        `left-out:${state.key}`,
         `${this.displayName(state)} of ${state.user}: ${skipped} unreadable event(s), ${dropped + crowded} occurrence(s) over the limits left out`,
       );
+    } else {
+      this.problems.recover(`left-out:${state.key}`);
     }
     const language = config.language;
     const untitled = pick(TEXT, language).untitled;
@@ -388,8 +412,10 @@ export class Syncer {
           state.sync = false;
           return;
         }
-        logger.error(
+        this.problems.fail(
+          `publish:${state.key}`,
           `Could not publish the events of ${this.displayName(state)} of ${state.user}: ${describe(err)}`,
+          'error',
         );
         return;
       }
@@ -404,8 +430,12 @@ export class Syncer {
         ...occurrence,
         description: truncate(plainText(occurrence.description), 1000),
       }));
-    logger.info(
+    logger.debug(
       `Published ${kept.length} occurrence(s) of ${this.displayName(state)} of ${state.user} in ${requests.length} request(s)`,
+    );
+    this.problems.recover(
+      `publish:${state.key}`,
+      `${this.displayName(state)} of ${state.user} is published again`,
     );
 
     if (state.shared && state.sync) {
@@ -435,7 +465,11 @@ export class Syncer {
       return await this.limiter.schedule(fn);
     } catch (err) {
       if (err instanceof GladysApiError && err.status === 429) {
-        logger.warn('Calendar write rate limit reached, waiting a minute');
+        // At most once per synchronization: a large first one meets it often.
+        logger[this.rateLimited ? 'debug' : 'warn'](
+          'Calendar write rate limit reached, waiting a minute',
+        );
+        this.rateLimited = true;
         await this.sleep(60_000);
         return this.limiter.schedule(fn);
       }
@@ -461,8 +495,9 @@ export class Syncer {
           allLanguages((language) => pick(REPORT_TEXT, language).statusFailing(failing.length)),
         );
       }
+      this.problems.recover('status');
     } catch (err) {
-      logger.warn(`Could not update the connection status: ${describe(err)}`);
+      this.problems.fail('status', `Could not update the connection status: ${describe(err)}`);
     }
   }
 

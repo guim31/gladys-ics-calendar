@@ -10,6 +10,15 @@ the notes of the version's GitHub Release.
 
 ## [Unreleased]
 
+### Changed
+
+- Quieter logs: a normal synchronization no longer writes anything. Downloads, published events and
+  changes sent to the scenes are only shown at the debug level.
+- A calendar that cannot be downloaded is reported once when the problem starts (or when its reason
+  changes) and once when it is reachable again, instead of at every synchronization. The same goes
+  for events left out of a feed, failed writes to the Gladys calendar and the "rate limit reached"
+  warning (once per synchronization at most).
+
 ## [1.0.0] - 2026-10-12
 
 ### Added

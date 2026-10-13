@@ -404,8 +404,17 @@ test('the horizon setting shortens the published range, older events go', async 
   assert.ok(world.eventsOf(holidays).some((event) => event.start === '2026-12-25'));
 });
 
-test('no log line carries the secret part of an address', async (t) => {
+test('no log line carries the secret part of an address, debug level included', async (t) => {
   const lines = [];
+  const level = process.env.LOG_LEVEL;
+  process.env.LOG_LEVEL = 'debug';
+  t.after(() => {
+    if (level === undefined) {
+      delete process.env.LOG_LEVEL;
+    } else {
+      process.env.LOG_LEVEL = level;
+    }
+  });
   for (const stream of [process.stdout, process.stderr]) {
     const original = stream.write.bind(stream);
     t.mock.method(stream, 'write', (chunk, ...rest) => {
