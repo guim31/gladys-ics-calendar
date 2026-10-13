@@ -10,6 +10,8 @@ the notes of the version's GitHub Release.
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-10-13
+
 ### Changed
 
 - Quieter logs: a normal synchronization no longer writes anything. Downloads, published events and
@@ -39,5 +41,6 @@ the notes of the version's GitHub Release.
 - "Sync now" button, with a report of the calendars that failed and why.
 - Texts and documentation in English, French, German and Spanish; scene texts in French by default.
 
-[Unreleased]: https://github.com/guim31/gladys-ics-calendar/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/guim31/gladys-ics-calendar/compare/v1.0.1...HEAD
+[1.0.1]: https://github.com/guim31/gladys-ics-calendar/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/guim31/gladys-ics-calendar/releases/tag/v1.0.0

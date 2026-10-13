@@ -1,6 +1,6 @@
 {
   "name": "gladys-ics-calendar",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "description": "Gladys Assistant integration: any iCalendar (.ics) feed (Google secret address, Outlook, iCloud, school timetables, waste collection) in the Gladys calendar.",
   "type": "module",
